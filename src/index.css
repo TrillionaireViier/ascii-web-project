@@ -97,7 +97,7 @@ body {
   border: 1px solid rgba(0, 255, 65, 0.3);
   border-radius: 8px;
   flex-wrap: wrap;
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
   backdrop-filter: blur(5px);
   box-shadow: 0 5px 25px rgba(0,0,0,0.5);
@@ -179,7 +179,6 @@ body {
   box-shadow: 0 0 30px rgba(0, 255, 65, 0.1), inset 0 0 20px rgba(0, 255, 65, 0.05);
   position: relative;
   overflow: hidden;
-  /* Allow canvas to scale properly */
   min-height: 300px; 
 }
 
@@ -198,7 +197,6 @@ body {
 }
 
 .ascii-output-canvas {
-  /* Prevent canvas from stretching weirdly */
   display: block;
   z-index: 1;
 }
@@ -208,6 +206,19 @@ body {
   font-size: 1.5rem;
   animation: pulse 1.5s infinite alternate;
   position: absolute;
+}
+
+.recording-indicator {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  color: var(--error-color);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.2rem;
+  font-weight: bold;
+  z-index: 10;
+  animation: pulse 1s infinite alternate;
+  text-shadow: 0 0 10px var(--error-color);
 }
 
 .error-box {
@@ -227,8 +238,8 @@ body {
 }
 
 @keyframes pulse {
-  from { opacity: 0.5; text-shadow: 0 0 5px var(--text-primary); }
-  to { opacity: 1; text-shadow: 0 0 15px var(--text-primary); }
+  from { opacity: 0.5; text-shadow: 0 0 5px currentColor; }
+  to { opacity: 1; text-shadow: 0 0 15px currentColor; }
 }
 
 @media (max-width: 768px) {

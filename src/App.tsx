@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useWebcam } from './hooks/useWebcam';
-import { AsciiRenderer } from './components/AsciiRenderer';
-import type { CharsetType } from './components/AsciiRenderer';
+import { AsciiRenderer, CharsetType, AsciiRendererRef } from './components/AsciiRenderer';
 
 function App() {
   const { videoRef, isReady, error, handleVideoUpload, playVideoFromUrl, switchToWebcam, mode } = useWebcam();
@@ -10,6 +9,20 @@ function App() {
   const [resolution, setResolution] = useState<number>(10);
   const [colorMode, setColorMode] = useState<boolean>(false);
   const [charset, setCharset] = useState<CharsetType>('classic');
+
+  // Recording State
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const rendererRef = useRef<AsciiRendererRef>(null);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      rendererRef.current?.stopRecording();
+      setIsRecording(false);
+    } else {
+      rendererRef.current?.startRecording();
+      setIsRecording(true);
+    }
+  };
 
   return (
     <div className="app-container">
@@ -82,6 +95,17 @@ function App() {
               className="styled-slider"
             />
           </div>
+
+          <div className="setting-group">
+            <label>Export</label>
+            <button 
+              className="btn" 
+              style={{ borderColor: isRecording ? '#ff3333' : '#00ff41', color: isRecording ? '#ff3333' : '#00ff41' }}
+              onClick={toggleRecording}
+            >
+              {isRecording ? '⏹ Stop & Save' : '⏺ Record Video'}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -94,6 +118,7 @@ function App() {
           </div>
         ) : (
           <div className="ascii-wrapper">
+            {isRecording && <div className="recording-indicator">⏺ REC</div>}
             <video 
               ref={videoRef} 
               autoPlay 
@@ -103,6 +128,7 @@ function App() {
             />
             {!isReady && !error && <div className="loading">Initializing...</div>}
             <AsciiRenderer 
+              ref={rendererRef}
               videoRef={videoRef} 
               isReady={isReady} 
               resolution={resolution}
