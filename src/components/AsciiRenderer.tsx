@@ -1,29 +1,40 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
-// A good ASCII density string, from darkest to lightest
-const ASCII_CHARS = ' .:-=+*#%@';
+export type CharsetType = 'classic' | 'binary' | 'blocks';
 
 interface AsciiRendererProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isReady: boolean;
+  resolution: number;
+  colorMode: boolean;
+  charset: CharsetType;
 }
 
-export function AsciiRenderer({ videoRef, isReady }: AsciiRendererProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [asciiArt, setAsciiArt] = useState<string>('');
-  
-  // Resolution control: lower number means higher resolution (smaller chunks)
-  const resolution = 8; 
+const CHARSETS = {
+  classic: ' .:-=+*#%@',
+  binary: '01',
+  blocks: ' ░▒▓█',
+};
+
+export function AsciiRenderer({ videoRef, isReady, resolution, colorMode, charset }: AsciiRendererProps) {
+  // We use two canvases:
+  // 1. A hidden offscreen canvas to extract pixel data from the video
+  // 2. A visible output canvas to render the text
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const outputCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (!isReady || !videoRef.current) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const offCanvas = offscreenCanvasRef.current;
+    const outCanvas = outputCanvasRef.current;
+    if (!offCanvas || !outCanvas) return;
     
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
+    const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+    const outCtx = outCanvas.getContext('2d', { alpha: false });
+    if (!offCtx || !outCtx) return;
 
+    const asciiChars = CHARSETS[charset];
     let animationFrameId: number;
 
     const renderAscii = () => {
@@ -33,27 +44,38 @@ export function AsciiRenderer({ videoRef, isReady }: AsciiRendererProps) {
         return;
       }
 
-      // Match canvas size to video size
-      const width = video.videoWidth;
-      const height = video.videoHeight;
+      // 1. Calculate dimensions
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
       
-      // Calculate how many characters we'll have
-      const cols = Math.floor(width / resolution);
-      const rows = Math.floor(height / (resolution * 2)); // Text is usually taller than it is wide
+      // Determine how many characters fit based on resolution
+      const cols = Math.floor(videoWidth / resolution);
+      const rows = Math.floor(videoHeight / resolution);
 
-      // Set canvas size for drawing the downscaled video
-      canvas.width = cols;
-      canvas.height = rows;
+      // Set offscreen canvas to low resolution for pixel reading
+      offCanvas.width = cols;
+      offCanvas.height = rows;
 
-      // Draw the current video frame to the canvas (downscaled)
-      ctx.drawImage(video, 0, 0, cols, rows);
+      // Set output canvas to true CSS size to keep text crisp
+      outCanvas.width = videoWidth;
+      outCanvas.height = videoHeight;
 
-      // Get the pixel data
-      const imageData = ctx.getImageData(0, 0, cols, rows);
+      // 2. Draw current video frame scaled down to offscreen canvas
+      offCtx.drawImage(video, 0, 0, cols, rows);
+
+      // 3. Read pixel data
+      const imageData = offCtx.getImageData(0, 0, cols, rows);
       const data = imageData.data;
 
-      let asciiStr = '';
+      // 4. Setup output canvas styling
+      outCtx.fillStyle = '#050505'; // Background color
+      outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+      
+      // Font size needs to match resolution
+      outCtx.font = `${resolution}px "Fira Code", monospace`;
+      outCtx.textBaseline = 'top';
 
+      // 5. Map pixels to text and render
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
           const offset = (y * cols + x) * 4;
@@ -64,14 +86,23 @@ export function AsciiRenderer({ videoRef, isReady }: AsciiRendererProps) {
           // Calculate perceived brightness (luminance)
           const brightness = (0.299 * r + 0.587 * g + 0.114 * b);
           
-          // Map brightness (0-255) to an index in the ASCII_CHARS string
-          const charIndex = Math.floor((brightness / 255) * (ASCII_CHARS.length - 1));
-          asciiStr += ASCII_CHARS[charIndex];
+          // Select character based on brightness
+          const charIndex = Math.floor((brightness / 255) * (asciiChars.length - 1));
+          const char = asciiChars[charIndex];
+
+          // Determine color
+          if (colorMode) {
+            outCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+          } else {
+            // Matrix Green
+            outCtx.fillStyle = '#00ff41';
+          }
+
+          // Draw the character
+          outCtx.fillText(char, x * resolution, y * resolution);
         }
-        asciiStr += '\n';
       }
 
-      setAsciiArt(asciiStr);
       animationFrameId = requestAnimationFrame(renderAscii);
     };
 
@@ -80,15 +111,20 @@ export function AsciiRenderer({ videoRef, isReady }: AsciiRendererProps) {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isReady, videoRef]);
+  }, [isReady, videoRef, resolution, colorMode, charset]);
 
   return (
     <div className="ascii-container">
-      {/* Hidden canvas for processing */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
-      
-      {/* The visible ASCII output */}
-      <pre className="ascii-output">{asciiArt}</pre>
+      <canvas ref={offscreenCanvasRef} style={{ display: 'none' }} />
+      {/* 
+        We use object-fit to ensure the canvas scales correctly 
+        within the wrapper while maintaining its aspect ratio. 
+      */}
+      <canvas 
+        ref={outputCanvasRef} 
+        className="ascii-output-canvas" 
+        style={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain' }}
+      />
     </div>
   );
 }
