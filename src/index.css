@@ -135,7 +135,6 @@ body {
   box-shadow: 0 0 15px rgba(0, 136, 255, 0.5);
 }
 
-
 /* Settings Panel */
 .settings-panel {
   display: flex;
@@ -256,6 +255,7 @@ body {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .library-item:hover {
@@ -271,6 +271,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  flex: 1;
 }
 
 .library-item-info strong {
@@ -279,13 +280,28 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+  max-width: 160px;
 }
 
 .library-item-info span {
   color: var(--text-secondary);
   font-size: 0.7rem;
   opacity: 0.6;
+}
+
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--error-color);
+  font-size: 1.5rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0 0.5rem;
+}
+
+.library-item:hover .delete-btn {
+  opacity: 1;
 }
 
 .ascii-wrapper {

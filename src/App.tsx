@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useWebcam } from './hooks/useWebcam';
-import { AsciiRenderer, CharsetType, AsciiRendererRef } from './components/AsciiRenderer';
+import { AsciiRenderer } from './components/AsciiRenderer';
+import type { CharsetType, AsciiRendererRef } from './components/AsciiRenderer';
+import { saveVideoToDB, getAllVideosFromDB, deleteVideoFromDB } from './lib/db';
+import type { GeneratedVideo } from './lib/db';
+import { generateVideoFromPrompt } from './lib/generator';
 
 function App() {
   const { videoRef, isReady, error, handleVideoUpload, playVideoFromUrl, switchToWebcam, mode } = useWebcam();
@@ -17,46 +21,69 @@ function App() {
   // AI Pipeline State
   const [prompt, setPrompt] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [library, setLibrary] = useState<any[]>([]);
+  const [progressMsg, setProgressMsg] = useState<string>('');
+  const [progressPct, setProgressPct] = useState<number>(0);
+  const [library, setLibrary] = useState<GeneratedVideo[]>([]);
 
-  // Fetch library on load
-  const fetchLibrary = async () => {
+  // Load library from IndexedDB on startup
+  useEffect(() => {
+    loadLibrary();
+  }, []);
+
+  const loadLibrary = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/library');
-      if (res.ok) {
-        const data = await res.json();
-        setLibrary(data);
-      }
+      const videos = await getAllVideosFromDB();
+      setLibrary(videos);
     } catch (e) {
-      console.warn("Backend server not running", e);
+      console.error("Failed to load library from IndexedDB", e);
     }
   };
-
-  useEffect(() => {
-    fetchLibrary();
-  }, []);
 
   const handleGenerate = async () => {
     if (!prompt) return;
     setIsGenerating(true);
+    setProgressMsg('Starting Generation Pipeline...');
+    setProgressPct(0);
+    
     try {
-      const res = await fetch('http://localhost:3001/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+      // 1. Run the WebAssembly generator
+      const videoBlob = await generateVideoFromPrompt(prompt, (msg, pct) => {
+        setProgressMsg(msg);
+        setProgressPct(pct);
       });
-      if (res.ok) {
-        const data = await res.json();
-        setLibrary([data.video, ...library]);
-        playVideoFromUrl(data.video.url);
-      }
-    } catch (e) {
+
+      setProgressMsg('Saving to Browser Archive...');
+      
+      // 2. Save to IndexedDB
+      const savedVideo = await saveVideoToDB(prompt, videoBlob);
+      
+      // 3. Update UI
+      setLibrary([savedVideo, ...library]);
+      
+      // 4. Play the new video immediately
+      const url = URL.createObjectURL(savedVideo.blob);
+      playVideoFromUrl(url);
+
+    } catch (e: any) {
       console.error("Generation failed", e);
-      alert("Failed to connect to backend server. Is it running?");
+      alert("Failed to generate video: " + e.message);
     } finally {
       setIsGenerating(false);
+      setProgressMsg('');
+      setProgressPct(0);
       setPrompt('');
     }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    await deleteVideoFromDB(id);
+    await loadLibrary();
+  };
+
+  const handlePlayLibraryVideo = (video: GeneratedVideo) => {
+    const url = URL.createObjectURL(video.blob);
+    playVideoFromUrl(url);
   };
 
   const toggleRecording = () => {
@@ -73,7 +100,7 @@ function App() {
     <div className="app-container">
       <header className="header">
         <h1 className="glitch" data-text="ASCII VISION">ASCII VISION</h1>
-        <p className="subtitle">Advanced webcam, video & AI to ASCII art generator</p>
+        <p className="subtitle">100% Free WebAssembly AI Video Generator</p>
         
         {/* Source Controls */}
         <div className="controls">
@@ -102,15 +129,15 @@ function App() {
           </label>
         </div>
 
-        {/* AI Generation Pipeline */}
+        {/* Browser AI Generation Pipeline */}
         <div className="ai-generator-panel">
-          <h3 style={{fontFamily: 'Orbitron', marginBottom: '10px', color: '#fff'}}>🤖 AI Video Generator Pipeline</h3>
+          <h3 style={{fontFamily: 'Orbitron', marginBottom: '10px', color: '#fff'}}>🤖 Free In-Browser AI Generator</h3>
           <div className="ai-input-group">
             <input 
               type="text" 
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Введіть ТЗ для відео (напр: Hacker at home...)" 
+              placeholder="Введіть ТЗ для відео (напр: cyberpunk hacker)..." 
               className="ai-input"
               disabled={isGenerating}
             />
@@ -119,9 +146,20 @@ function App() {
               onClick={handleGenerate}
               disabled={isGenerating || !prompt}
             >
-              {isGenerating ? 'Generating 3-sec clips...' : 'Generate 2-min Video'}
+              {isGenerating ? 'Generating...' : 'Generate Video'}
             </button>
           </div>
+          {isGenerating && (
+            <div className="progress-container" style={{ marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.8rem', color: '#00ff41' }}>
+                <span>{progressMsg}</span>
+                <span>{progressPct}%</span>
+              </div>
+              <div style={{ width: '100%', height: '4px', background: 'rgba(0,255,65,0.2)', borderRadius: '2px' }}>
+                <div style={{ width: `${progressPct}%`, height: '100%', background: '#00ff41', borderRadius: '2px', transition: 'width 0.3s' }}></div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Generator Settings Panel */}
@@ -192,6 +230,7 @@ function App() {
                 autoPlay 
                 playsInline 
                 muted 
+                loop
                 style={{ display: 'none' }} 
               />
               {!isReady && !error && <div className="loading">Initializing...</div>}
@@ -209,18 +248,25 @@ function App() {
 
         {/* Right Side: Library Archive */}
         <div className="library-section">
-          <h3 className="library-title">📁 Generated Archive</h3>
+          <h3 className="library-title">📁 IndexedDB Archive</h3>
           <div className="library-grid">
             {library.length === 0 ? (
-              <p style={{opacity: 0.5, fontSize: '0.9rem', textAlign: 'center'}}>No videos generated yet.</p>
+              <p style={{opacity: 0.5, fontSize: '0.9rem', textAlign: 'center'}}>No videos generated yet. Type a prompt above!</p>
             ) : (
               library.map((video) => (
-                <div key={video.id} className="library-item" onClick={() => playVideoFromUrl(video.url)}>
+                <div key={video.id} className="library-item" onClick={() => handlePlayLibraryVideo(video)}>
                   <div className="library-item-icon">🎬</div>
                   <div className="library-item-info">
                     <strong>{video.prompt}</strong>
                     <span>{new Date(video.createdAt).toLocaleTimeString()}</span>
                   </div>
+                  <button 
+                    className="delete-btn" 
+                    onClick={(e) => handleDelete(e, video.id)}
+                    title="Delete from archive"
+                  >
+                    ×
+                  </button>
                 </div>
               ))
             )}
