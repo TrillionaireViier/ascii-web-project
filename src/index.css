@@ -2,7 +2,7 @@
 
 :root {
   --bg-color: #050505;
-  --text-primary: #00ff41; /* Classic matrix green */
+  --text-primary: #00ff41;
   --text-secondary: #ffffff;
   --accent-glow: rgba(0, 255, 65, 0.4);
   --error-color: #ff3333;
@@ -55,6 +55,33 @@ body {
   opacity: 0.8;
   letter-spacing: 2px;
   text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--text-primary);
+  color: var(--text-primary);
+  padding: 0.5rem 1rem;
+  font-family: 'Orbitron', sans-serif;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.btn:hover, .btn.active {
+  background: var(--text-primary);
+  color: var(--bg-color);
+  box-shadow: 0 0 15px var(--accent-glow);
 }
 
 .main-content {
@@ -79,7 +106,6 @@ body {
   overflow: hidden;
 }
 
-/* CRT Scanline effect */
 .ascii-wrapper::after {
   content: " ";
   display: block;
@@ -96,8 +122,8 @@ body {
 
 .ascii-output {
   font-family: 'Fira Code', monospace;
-  font-size: 8px; /* Small font to fit high resolution ASCII */
-  line-height: 0.8; /* Tight line height for better image mapping */
+  font-size: 8px;
+  line-height: 0.8;
   white-space: pre;
   color: var(--text-primary);
   text-shadow: 0 0 2px var(--accent-glow);
@@ -121,11 +147,6 @@ body {
   color: var(--error-color);
 }
 
-.error-box h2 {
-  font-family: 'Orbitron', sans-serif;
-  margin-bottom: 1rem;
-}
-
 .footer {
   text-align: center;
   padding-top: 2rem;
@@ -139,10 +160,6 @@ body {
 }
 
 @media (max-width: 768px) {
-  .ascii-output {
-    font-size: 6px;
-  }
-  .glitch {
-    font-size: 2rem;
-  }
+  .ascii-output { font-size: 6px; }
+  .glitch { font-size: 2rem; }
 }

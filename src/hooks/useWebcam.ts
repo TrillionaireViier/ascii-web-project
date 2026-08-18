@@ -4,11 +4,14 @@ export function useWebcam() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [mode, setMode] = useState<'webcam' | 'video'>('webcam');
 
   useEffect(() => {
     let stream: MediaStream | null = null;
 
     const startWebcam = async () => {
+      if (mode !== 'webcam') return;
+      
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
@@ -34,7 +37,29 @@ export function useWebcam() {
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [mode]);
 
-  return { videoRef, isReady, error };
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    if (videoRef.current) {
+      setMode('video');
+      videoRef.current.srcObject = null; // Clear webcam stream
+      videoRef.current.src = url;
+      videoRef.current.loop = true;
+      videoRef.current.onloadedmetadata = () => {
+        setIsReady(true);
+        videoRef.current?.play();
+      };
+    }
+  };
+
+  const switchToWebcam = () => {
+    setMode('webcam');
+    setIsReady(false);
+  };
+
+  return { videoRef, isReady, error, handleVideoUpload, switchToWebcam, mode };
 }
