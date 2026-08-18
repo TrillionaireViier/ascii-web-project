@@ -52,14 +52,15 @@ export function useWebcam() {
       setMode('video');
       videoRef.current.srcObject = null; // Clear webcam stream
       videoRef.current.loop = true;
+      
+      videoRef.current.onloadedmetadata = () => {
+        setIsReady(true);
+      };
+
       videoRef.current.src = url;
       
       // On iOS, play() must be called synchronously inside the user interaction event
       videoRef.current.play().catch(e => console.error('Play failed:', e));
-
-      videoRef.current.onloadedmetadata = () => {
-        setIsReady(true);
-      };
     }
   };
 
