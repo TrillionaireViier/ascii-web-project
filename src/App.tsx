@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useWebcam } from './hooks/useWebcam';
 import { AsciiRenderer, CharsetType, AsciiRendererRef } from './components/AsciiRenderer';
 
@@ -14,6 +14,51 @@ function App() {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const rendererRef = useRef<AsciiRendererRef>(null);
 
+  // AI Pipeline State
+  const [prompt, setPrompt] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [library, setLibrary] = useState<any[]>([]);
+
+  // Fetch library on load
+  const fetchLibrary = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/library');
+      if (res.ok) {
+        const data = await res.json();
+        setLibrary(data);
+      }
+    } catch (e) {
+      console.warn("Backend server not running", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchLibrary();
+  }, []);
+
+  const handleGenerate = async () => {
+    if (!prompt) return;
+    setIsGenerating(true);
+    try {
+      const res = await fetch('http://localhost:3001/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLibrary([data.video, ...library]);
+        playVideoFromUrl(data.video.url);
+      }
+    } catch (e) {
+      console.error("Generation failed", e);
+      alert("Failed to connect to backend server. Is it running?");
+    } finally {
+      setIsGenerating(false);
+      setPrompt('');
+    }
+  };
+
   const toggleRecording = () => {
     if (isRecording) {
       rendererRef.current?.stopRecording();
@@ -28,7 +73,7 @@ function App() {
     <div className="app-container">
       <header className="header">
         <h1 className="glitch" data-text="ASCII VISION">ASCII VISION</h1>
-        <p className="subtitle">Advanced webcam & video to ASCII art generator</p>
+        <p className="subtitle">Advanced webcam, video & AI to ASCII art generator</p>
         
         {/* Source Controls */}
         <div className="controls">
@@ -42,7 +87,6 @@ function App() {
           <button 
             className="btn"
             onClick={() => playVideoFromUrl('/matrix-coffee.mp4')}
-            style={{ borderColor: '#00ff41', color: '#00ff41', boxShadow: '0 0 10px rgba(0, 255, 65, 0.2)' }}
           >
             ☕️ Matrix Coffee
           </button>
@@ -56,6 +100,28 @@ function App() {
               style={{ display: 'none' }} 
             />
           </label>
+        </div>
+
+        {/* AI Generation Pipeline */}
+        <div className="ai-generator-panel">
+          <h3 style={{fontFamily: 'Orbitron', marginBottom: '10px', color: '#fff'}}>🤖 AI Video Generator Pipeline</h3>
+          <div className="ai-input-group">
+            <input 
+              type="text" 
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Введіть ТЗ для відео (напр: Hacker at home...)" 
+              className="ai-input"
+              disabled={isGenerating}
+            />
+            <button 
+              className="btn ai-btn" 
+              onClick={handleGenerate}
+              disabled={isGenerating || !prompt}
+            >
+              {isGenerating ? 'Generating 3-sec clips...' : 'Generate 2-min Video'}
+            </button>
+          </div>
         </div>
 
         {/* Generator Settings Panel */}
@@ -109,34 +175,57 @@ function App() {
         </div>
       </header>
 
-      <main className="main-content">
-        {error ? (
-          <div className="error-box">
-            <h2>Access Denied</h2>
-            <p>{error}</p>
-            <p>Please allow camera permissions or test a video scenario.</p>
+      <main className="main-layout">
+        {/* Left Side: Renderer */}
+        <div className="renderer-section">
+          {error ? (
+            <div className="error-box">
+              <h2>Access Denied</h2>
+              <p>{error}</p>
+              <p>Please allow camera permissions or test a video scenario.</p>
+            </div>
+          ) : (
+            <div className="ascii-wrapper">
+              {isRecording && <div className="recording-indicator">⏺ REC</div>}
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                style={{ display: 'none' }} 
+              />
+              {!isReady && !error && <div className="loading">Initializing...</div>}
+              <AsciiRenderer 
+                ref={rendererRef}
+                videoRef={videoRef} 
+                isReady={isReady} 
+                resolution={resolution}
+                colorMode={colorMode}
+                charset={charset}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Right Side: Library Archive */}
+        <div className="library-section">
+          <h3 className="library-title">📁 Generated Archive</h3>
+          <div className="library-grid">
+            {library.length === 0 ? (
+              <p style={{opacity: 0.5, fontSize: '0.9rem', textAlign: 'center'}}>No videos generated yet.</p>
+            ) : (
+              library.map((video) => (
+                <div key={video.id} className="library-item" onClick={() => playVideoFromUrl(video.url)}>
+                  <div className="library-item-icon">🎬</div>
+                  <div className="library-item-info">
+                    <strong>{video.prompt}</strong>
+                    <span>{new Date(video.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        ) : (
-          <div className="ascii-wrapper">
-            {isRecording && <div className="recording-indicator">⏺ REC</div>}
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted 
-              style={{ display: 'none' }} 
-            />
-            {!isReady && !error && <div className="loading">Initializing...</div>}
-            <AsciiRenderer 
-              ref={rendererRef}
-              videoRef={videoRef} 
-              isReady={isReady} 
-              resolution={resolution}
-              colorMode={colorMode}
-              charset={charset}
-            />
-          </div>
-        )}
+        </div>
       </main>
 
       <footer className="footer">
