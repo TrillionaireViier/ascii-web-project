@@ -51,12 +51,16 @@ export function useWebcam() {
     if (videoRef.current) {
       setMode('video');
       videoRef.current.srcObject = null; // Clear webcam stream
-      videoRef.current.src = url;
       videoRef.current.loop = true;
+      
+      // Attach handler BEFORE setting src to avoid race conditions with fast blob URLs
       videoRef.current.onloadedmetadata = () => {
         setIsReady(true);
-        videoRef.current?.play();
+        videoRef.current?.play().catch(e => console.error('Play failed:', e));
       };
+      
+      videoRef.current.src = url;
+      videoRef.current.load(); // Explicitly trigger load
     }
   };
 
