@@ -2,7 +2,7 @@ import { useWebcam } from './hooks/useWebcam';
 import { AsciiRenderer } from './components/AsciiRenderer';
 
 function App() {
-  const { videoRef, isReady, error, handleVideoUpload, switchToWebcam, mode } = useWebcam();
+  const { videoRef, isReady, error, handleVideoUpload, playVideoFromUrl, switchToWebcam, mode } = useWebcam();
 
   return (
     <div className="app-container">
@@ -18,8 +18,16 @@ function App() {
             Live Camera
           </button>
           
-          <label className={`btn ${mode === 'video' ? 'active' : ''}`}>
-            Upload Video
+          <button 
+            className="btn"
+            onClick={() => playVideoFromUrl('/matrix-coffee.mp4')}
+            style={{ borderColor: '#00ff41', color: '#00ff41', boxShadow: '0 0 10px rgba(0, 255, 65, 0.2)' }}
+          >
+            ☕️ Play "Matrix Coffee" Scenario
+          </button>
+
+          <label className="btn">
+            Upload Custom
             <input 
               type="file" 
               accept="video/*" 
@@ -35,7 +43,7 @@ function App() {
           <div className="error-box">
             <h2>Access Denied</h2>
             <p>{error}</p>
-            <p>Please allow camera permissions or upload a video instead.</p>
+            <p>Please allow camera permissions or test a video scenario.</p>
           </div>
         ) : (
           <div className="ascii-wrapper">

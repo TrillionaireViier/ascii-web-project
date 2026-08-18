@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 const ASCII_CHARS = ' .:-=+*#%@';
 
 interface AsciiRendererProps {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   isReady: boolean;
 }
 

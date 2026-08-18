@@ -44,6 +44,10 @@ export function useWebcam() {
     if (!file) return;
 
     const url = URL.createObjectURL(file);
+    playVideoFromUrl(url);
+  };
+
+  const playVideoFromUrl = (url: string) => {
     if (videoRef.current) {
       setMode('video');
       videoRef.current.srcObject = null; // Clear webcam stream
@@ -61,5 +65,5 @@ export function useWebcam() {
     setIsReady(false);
   };
 
-  return { videoRef, isReady, error, handleVideoUpload, switchToWebcam, mode };
+  return { videoRef, isReady, error, handleVideoUpload, playVideoFromUrl, switchToWebcam, mode };
 }
