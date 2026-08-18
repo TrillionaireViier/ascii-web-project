@@ -3,16 +3,10 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 let ffmpeg: FFmpeg | null = null;
 
-export const initFFmpeg = async (onProgress?: (progress: number) => void) => {
+export const initFFmpeg = async () => {
   if (ffmpeg) return ffmpeg;
   
   ffmpeg = new FFmpeg();
-  
-  if (onProgress) {
-    ffmpeg.on('progress', ({ progress, time }) => {
-      onProgress(Math.round(progress * 100));
-    });
-  }
 
   // Use the multi-threaded core if possible, or fallback to single threaded.
   // We'll use the remote unpkg URLs for the wasm files.
@@ -32,9 +26,7 @@ export const generateVideoFromPrompt = async (
 ): Promise<Blob> => {
   if (onProgress) onProgress("Initializing AI Engine...", 10);
   
-  const ffmpegInstance = await initFFmpeg((p) => {
-    if (onProgress) onProgress("Stitching Video...", 50 + Math.floor(p / 2));
-  });
+  const ffmpegInstance = await initFFmpeg();
 
   if (onProgress) onProgress("Generating AI Image...", 20);
   
@@ -54,6 +46,22 @@ export const generateVideoFromPrompt = async (
   
   await ffmpegInstance.writeFile(imageName, new Uint8Array(imageBuffer));
 
+  // Attach progress listener locally to this run
+  const handleProgress = ({ progress, time }: any) => {
+    let pct = Math.round(progress * 100);
+    // If progress is weird or duration is unknown, fallback to time (we know duration is 3s = 3,000,000us)
+    if (pct > 100 || isNaN(pct) || pct < 0) {
+       pct = Math.round((time / 3000000) * 100);
+    }
+    // Clamp pct
+    if (pct > 100) pct = 100;
+    if (pct < 0) pct = 0;
+    
+    if (onProgress) onProgress("Stitching Video...", 50 + Math.floor(pct / 2));
+  };
+
+  ffmpegInstance.on('progress', handleProgress);
+
   // 3. Run FFmpeg command to turn static image into a 3-second zooming video
   // -loop 1: Loop the single input image
   // -t 3: Duration 3 seconds
@@ -67,6 +75,9 @@ export const generateVideoFromPrompt = async (
     '-pix_fmt', 'yuv420p',
     outputName
   ]);
+
+  // Remove the listener so it doesn't fire on subsequent runs
+  ffmpegInstance.off('progress', handleProgress);
 
   if (onProgress) onProgress("Finalizing...", 95);
 
